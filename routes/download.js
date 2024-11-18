@@ -18,7 +18,7 @@ router.get("/dl/:file", (req, res) => {
   if (!fs.existsSync(filePath)) {
     console.log("Looking for file in filepath: <b>" + filePath + "</b>");
     
-      return res.status(404).send('File not found');
+      return res.status(404).send('<h1>File not found</h1><p><a href="/">Home</a>');
   }
 
   // Stream the file to the response
