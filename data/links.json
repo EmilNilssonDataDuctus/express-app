@@ -1,0 +1,37 @@
+[
+  [
+    "Item 1",
+    [
+      "Sub-item 1.1",
+      "Sub-item 1.2",
+      [
+        "Sub-sub-item 1.2.1",
+        "Sub-sub-item 1.2.2"
+      ]
+    ],
+    "Item 2",
+    [
+      "Sub-item 2.1",
+      "Sub-item 2.2"
+    ]
+  ],
+  [
+    {
+      "name": "file1.txt",
+      "url": "/public/file1.txt"
+    },
+    {
+      "name": "folder1",
+      "children": [
+        {
+          "name": "file2.txt",
+          "url": "/public/folder1/file2.txt"
+        },
+        {
+          "name": "file3.txt",
+          "url": "/public/folder1/file3.txt"
+        }
+      ]
+    }
+  ]
+]

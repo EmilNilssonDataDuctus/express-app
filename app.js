@@ -1,11 +1,25 @@
 const express = require("express");
+const cors = require("cors");
 const app = express();
+const path = require("path");
 
-const download = require("./routes/download")
+app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  cors({
+    origin: ["http://localhost:5500", "http://127.0.0.2:5500"],
+  })
+);
 
-app.use("/downloads", download)
+const download = require("./routes/download");
+const downloadByStream = require("./routes/downloadByStream");
+const listRoutes = require("./routes/list");
+
+app.use("/downloads", download);
+app.use("/downloadbystream", downloadByStream);
+app.use("/list", listRoutes);
 
 const Redis = require("ioredis");
+const getDirectoryContent = require("./utils/getDirectoryContent");
 
 // Create a Redis client and connect to Redis running in the Docker container
 const redis = new Redis({
@@ -19,9 +33,24 @@ const redis = new Redis({
 });
 
 app.get("/", (req, res) => {
+  const directoryContent = getDirectoryContent("/public");
+  console.log(directoryContent);
+
   res.send(
-    '<a href="/set-cookie">Set cookie</a><br/><a href="/pokemon/ditto">Fetch pokemon ditto</a><br/><a href="/downloads/ditto">Download ditto</a>'
+    '<a href="/set-cookie">Set cookie</a><br/><a href="/pokemon/ditto">Fetch pokemon ditto</a><br/><a href="/downloads/ditto">Download ditto</a><br/><a href="/downloadByStream/ditto">Download ditto by stream</a>'
   );
+});
+
+app.get("/links", async (req, res) => {
+  const data = require("./data/links");
+  const downloads = await getDirectoryContent("./public/downloads");
+  const imgs = await getDirectoryContent("./public/imgs");
+ 
+
+  const response = [...data, ...downloads, ...imgs];
+  console.log(response);
+
+  return res.json(response);
 });
 
 app.get("/set-cookie", (req, res) => {
@@ -46,10 +75,12 @@ app.get(`/pokemon/:pokemon`, async (req, res) => {
     } else {
       console.log("Cache missed");
 
-      const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokemon}`);
+      const response = await fetch(
+        `https://pokeapi.co/api/v2/pokemon/${pokemon}`
+      );
       const data = await response.json();
       await redis.setex(pokemon, 3600, JSON.stringify(data));
-      
+
       return res.json(data);
     }
   } catch {
