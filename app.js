@@ -1,6 +1,10 @@
 const express = require("express");
 const app = express();
 
+const download = require("./routes/download")
+
+app.use("/downloads", download)
+
 const Redis = require("ioredis");
 
 // Create a Redis client and connect to Redis running in the Docker container
@@ -16,7 +20,7 @@ const redis = new Redis({
 
 app.get("/", (req, res) => {
   res.send(
-    '<a href="/set-cookie">Set cookie</a><br/><a href="/pokemon/ditto">Fetch pokemon ditto</a>'
+    '<a href="/set-cookie">Set cookie</a><br/><a href="/pokemon/ditto">Fetch pokemon ditto</a><br/><a href="/downloads/ditto">Download ditto</a>'
   );
 });
 
