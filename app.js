@@ -20,6 +20,7 @@ app.use("/list", listRoutes);
 
 const Redis = require("ioredis");
 const getDirectoryContent = require("./utils/getDirectoryContent");
+const mwCacheFlagger = require("./middleware/cacheFlagger");
 
 // Create a Redis client and connect to Redis running in the Docker container
 const redis = new Redis({
@@ -45,7 +46,6 @@ app.get("/links", async (req, res) => {
   const data = require("./data/links");
   const downloads = await getDirectoryContent("./public/downloads");
   const imgs = await getDirectoryContent("./public/imgs");
- 
 
   const response = [...data, ...downloads, ...imgs];
   console.log(response);
@@ -63,23 +63,27 @@ app.get("/set-cookie", (req, res) => {
   res.send('<div>Cookie is set</div><a href="/">Home</a>');
 });
 
-app.get(`/pokemon/:pokemon`, async (req, res) => {
+app.get(`/pokemon/:pokemon`, mwCacheFlagger, async (req, res) => {
   const pokemon = req.params.pokemon;
+  const { useCache } = req;
 
   try {
-    const cachedData = await redis.get(pokemon);
+    const cachedData = useCache ? await redis.get(pokemon) : null;
+
     if (cachedData) {
-      console.log("Cache hit");
+      console.time("Cache Hit");
+      const resParsedFromCache = JSON.parse(cachedData);
+      console.timeEnd("Cache Hit");
 
-      return res.json(JSON.parse(cachedData));
+      return res.json(resParsedFromCache);
     } else {
-      console.log("Cache missed");
-
+      console.time("Cache Miss");
       const response = await fetch(
         `https://pokeapi.co/api/v2/pokemon/${pokemon}`
       );
       const data = await response.json();
       await redis.setex(pokemon, 3600, JSON.stringify(data));
+      console.timeEnd("Cache Miss");
 
       return res.json(data);
     }
