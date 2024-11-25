@@ -10,11 +10,13 @@ const spritesOnlyDefault = require("./filters");
 */
 const apiRequest3rdPartyDataSource = async (pokemonNo) => {
   console.time("Cache layer 1 Miss");
+
   const response = await fetch(
     `https://pokeapi.co/api/v2/pokemon/${pokemonNo}`
   );
   const data = await response.json();
   console.timeEnd("Cache layer 1 Miss");
+  console.log("Fetching from public datasource");
   return data;
 };
 
@@ -28,7 +30,7 @@ router.get(`/:pokemon`, mwCacheFlagger, async (req, res) => {
   console.log("Requesting pokemonNo:", pokemonNo);
   const cacheKeyLayer1 = pokemonNo;
 
-  const cacheDataLayer1 = await redis.get(cacheKeyLayer1);
+  const cacheDataLayer1 = useCache ? await redis.get(cacheKeyLayer1) : null;
   // If not using cache or cache is empty
   // Get from 3rd party datasource
   if (!cacheDataLayer1) {
@@ -56,14 +58,14 @@ router.get(`/sprite/:pokemon`, mwCacheFlagger, async (req, res) => {
   console.log("Requesting pokemonNo:", pokemonNo);
   const cacheKeyLayer2 = `${pokemonNo}:sprites`;
 
-  const cacheDataLayer2 = await redis.get(cacheKeyLayer2);
+  const cacheDataLayer2 = useCache ? await redis.get(cacheKeyLayer2) : null;
   // If not using cache or cache is empty
   // Get from 3rd party datasource
   if (!cacheDataLayer2) {
     console.time("Cache layer 2 Miss");
     // Check layer 1 of cache
     const cacheKeyLayer1 = pokemonNo;
-    const cacheDataLayer1 = await redis.get(cacheKeyLayer1);
+    const cacheDataLayer1 = useCache ? await redis.get(cacheKeyLayer1) : null;
     console.timeEnd("Cache layer 2 Miss");
     if (!cacheDataLayer1) {
       // Check third party datasource
