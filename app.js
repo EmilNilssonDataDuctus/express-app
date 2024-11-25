@@ -6,32 +6,21 @@ const path = require("path");
 app.use(express.static(path.join(__dirname, "public")));
 app.use(
   cors({
-    origin: ["http://localhost:5500", "http://127.0.0.2:5500"],
+    // origin: ["http://localhost:5500", "http://127.0.0.2:5500"],
   })
 );
 
 const download = require("./routes/download");
 const downloadByStream = require("./routes/downloadByStream");
 const listRoutes = require("./routes/list");
+const pokemonRoutes = require("./routes/pokemon/pokemon");
 
 app.use("/downloads", download);
 app.use("/downloadbystream", downloadByStream);
 app.use("/list", listRoutes);
+app.use("/pokemon", pokemonRoutes);
 
-const Redis = require("ioredis");
 const getDirectoryContent = require("./utils/getDirectoryContent");
-const mwCacheFlagger = require("./middleware/cacheFlagger");
-
-// Create a Redis client and connect to Redis running in the Docker container
-const redis = new Redis({
-  host: "localhost", // The Redis container is accessible via localhost on port 6379
-  port: 6379, // Redis default port
-  retryStrategy(times) {
-    const delay = Math.min(times * 500, 2000); // Exponential backoff strategy with a max delay of 2 seconds
-    console.log(`Redis connection lost. Retrying in ${delay}ms`);
-    return delay; // Delay between retries
-  },
-});
 
 app.get("/", (req, res) => {
   const directoryContent = getDirectoryContent("/public");
@@ -63,73 +52,35 @@ app.get("/set-cookie", (req, res) => {
   res.send('<div>Cookie is set</div><a href="/">Home</a>');
 });
 
-app.get(`/pokemon/:pokemon`, mwCacheFlagger, async (req, res) => {
-  const pokemon = req.params.pokemon;
-  const { useCache } = req;
+// app.get(`/pokemon/:pokemon`, mwCacheFlagger, async (req, res) => {
+//   const pokemon = req.params.pokemon;
+//   const { useCache } = req;
 
-  try {
-    const cachedData = useCache ? await redis.get(pokemon) : null;
+//   try {
+//     const cachedData = useCache ? await redis.get(pokemon) : null;
 
-    if (cachedData) {
-      console.time("Cache Hit");
-      const resParsedFromCache = JSON.parse(cachedData);
-      console.timeEnd("Cache Hit");
+//     if (cachedData) {
+//       console.time("Cache Hit");
+//       const resParsedFromCache = JSON.parse(cachedData);
+//       console.timeEnd("Cache Hit");
 
-      return res.json(resParsedFromCache);
-    } else {
-      console.time("Cache Miss");
-      const response = await fetch(
-        `https://pokeapi.co/api/v2/pokemon/${pokemon}`
-      );
-      const data = await response.json();
-      await redis.setex(pokemon, 3600, JSON.stringify(data));
-      console.timeEnd("Cache Miss");
+//       return res.json(resParsedFromCache);
+//     } else {
+//       console.time("Cache Miss");
+//       const response = await fetch(
+//         `https://pokeapi.co/api/v2/pokemon/${pokemon}`
+//       );
+//       const data = await response.json();
+//       await redis.setex(pokemon, 3600, JSON.stringify(data));
+//       console.timeEnd("Cache Miss");
 
-      return res.json(data);
-    }
-  } catch {
-    res.status(500).send("An error occurred");
-  }
-});
+//       return res.json(data);
+//     }
+//   } catch {
+//     res.status(500).send("An error occurred");
+//   }
+// });
 
 app.listen(3000, () => {
   console.log("Server is running on http://localhost:3000");
 });
-
-redis.on("connect", () => {
-  console.log("Connected to Redis");
-});
-
-redis.on("close", () => {
-  console.log("Redis connection closed");
-});
-
-redis.on("error", (err) => {
-  console.error("Redis error:", err);
-});
-
-process.on("ECONNREFUSED", () => {
-  console.log("Shutting down gracefully...");
-  redis.quit(); // Close the Redis connection gracefully
-  process.exit(0);
-});
-
-// Example: Set a key-value pair
-redis
-  .set("mykey", "Hello, Redis!")
-  .then(() => {
-    console.log("Key set!");
-  })
-  .catch((err) => {
-    console.error("Error setting key:", err);
-  });
-
-// Example: Get a value by key
-redis
-  .get("mykey")
-  .then((result) => {
-    console.log("Stored value:", result); // Should print: "Hello, Redis!"
-  })
-  .catch((err) => {
-    console.error("Error getting key:", err);
-  });
