@@ -2,7 +2,7 @@ const Redis = require("ioredis");
 
 // Create a Redis client and connect to Redis running in the Docker container
 const redis = new Redis({
-  host: "localhost", // The Redis container is accessible via localhost on port 6379
+  host: process.env.REDIS_HOST || "localhost", // The Redis container is accessible via localhost on port 6379
   port: 6379, // Redis default port
   retryStrategy(times) {
     const delay = Math.min(times * 500, 2000); // Exponential backoff strategy with a max delay of 2 seconds
