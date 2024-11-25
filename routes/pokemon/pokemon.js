@@ -5,68 +5,93 @@ const mwCacheFlagger = require("../../middleware/cacheFlagger");
 const redis = require("../../init/redis");
 const spritesOnlyDefault = require("./filters");
 
+const getDataFrom3rdPartySource = async (pokemonNo) => {
+  console.time(
+    "Cache layer 1 Miss\nFetching from public datasource: pokeapi.co/api"
+  );
+  const response = await fetch(
+    `https://pokeapi.co/api/v2/pokemon/${pokemonNo}`
+  );
+  const data = await response.json();
+  console.timeEnd(
+    "Cache layer 1 Miss\nFetching from public datasource: pokeapi.co/api"
+  );
+  return data;
+};
+
 router.get(`/:pokemon`, mwCacheFlagger, async (req, res) => {
-  const pokemon = req.params.pokemon;
-  console.log(pokemon);
   const { useCache } = req;
+  const pokemonNo = req.params.pokemon;
 
-  try {
-    const cachedData = useCache ? await redis.get(pokemon) : null;
+  const cacheDataLayer1 = useCache ? await redis.get(pokemonNo) : null;
+  if (!cacheDataLayer1) {
+    // Get from 3rd party source
+    const dataFrom3rdParty = await getDataFrom3rdPartySource(pokemonNo);
 
-    if (cachedData) {
-      console.time("Cache Hit");
-      const resParsedFromCache = JSON.parse(cachedData);
-      console.timeEnd("Cache Hit");
-
-      return res.json(resParsedFromCache);
-    } else {
-      console.time("Cache Miss");
-      const response = await fetch(
-        `https://pokeapi.co/api/v2/pokemon/${pokemon}`
-      );
-      const data = await response.json();
-      await redis.setex(pokemon, 3600, JSON.stringify(data));
-      console.timeEnd("Cache Miss");
-
-      return res.json(data);
-    }
-  } catch {
-    return res.status(500).send("An error occurred");
+    // Set my redis cache
+    const cacheKeyLayer1 = pokemonNo;
+    await redis.setex(cacheKeyLayer1, 3600, JSON.stringify(dataFrom3rdParty));
+    return res.json(dataFrom3rdParty);
   }
+
+  console.time("Cache layer 1 Hit");
+  const resParsedFromCache = JSON.parse(cacheDataLayer1);
+  console.timeEnd("Cache layer 1 Hit");
+
+  return res.json(resParsedFromCache);
 });
 
 router.get(`/sprite/:pokemon`, mwCacheFlagger, async (req, res) => {
-  const pokemonNo = req.params.pokemon;
   const { useCache } = req;
-  const cacheKey = `${pokemonNo}:sprites`;
+  const pokemonNo = req.params.pokemon;
+  const cacheKeyLayer2 = `${pokemonNo}:sprites`;
 
+  // call my lw endpoint
   try {
-    const cachedData = useCache ? await redis.get(cacheKey) : null;
+    const cachedDataLayer2 = useCache ? await redis.get(cacheKeyLayer2) : null;
 
-    if (cachedData) {
-      console.time("Cache Hit");
-      const resParsedFromCache = JSON.parse(cachedData);
-      console.timeEnd("Cache Hit");
+    if (!cachedDataLayer2) {
+      const cacheKeyLayer1 = pokemonNo;
+      try {
+        console.time("Cache layer 2 Miss");
+        const cacheDataLayer1 = useCache
+          ? await redis.get(cacheKeyLayer1)
+          : null;
+        console.timeEnd("Cache layer 2 Miss");
 
-      return res.json(resParsedFromCache);
-    } else {
-      console.time("Cache Miss");
-      const response = await fetch(
-        `https://pokeapi.co/api/v2/pokemon/${pokemonNo}`
-      );
-      const data = await response.json();
+        if (!cacheDataLayer1) {
+          try {
+            const data = await getDataFrom3rdPartySource(pokemonNo);
+            return res.json(data);
+          } catch (error) {
+            return res.status(500).send("An error occurred");
+          }
+        }
+        console.time("Cache layer 1 Hit");
+        const resParsedFromCache = JSON.parse(cacheDataLayer1);
+        console.timeEnd("Cache layer 1 Hit");
 
-      const sprites = data.sprites;
+        const sprites = resParsedFromCache.sprites;
+        const filteredSprites = spritesOnlyDefault(sprites);
 
-      const filteredSprites = spritesOnlyDefault(sprites);
+        await redis.setex(
+          cacheKeyLayer2,
+          3600,
+          JSON.stringify(filteredSprites)
+        );
 
-      await redis.setex(cacheKey, 3600, JSON.stringify(filteredSprites));
-      console.timeEnd("Cache Miss");
-
-      return res.json(filteredSprites);
+        return res.json(filteredSprites);
+      } catch {
+        return res.status(500).send("An error occurred");
+      }
     }
+    console.time("Cache layer 2 Hit");
+    const resParsedFromCache = JSON.parse(cachedDataLayer2);
+    console.timeEnd("Cache layer 2 Hit");
+
+    return res.json(resParsedFromCache);
   } catch {
-    res.status(500).send("An error occurred");
+    return res.status(500).send("An error occurred");
   }
 });
 

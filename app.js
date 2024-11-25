@@ -52,35 +52,6 @@ app.get("/set-cookie", (req, res) => {
   res.send('<div>Cookie is set</div><a href="/">Home</a>');
 });
 
-// app.get(`/pokemon/:pokemon`, mwCacheFlagger, async (req, res) => {
-//   const pokemon = req.params.pokemon;
-//   const { useCache } = req;
-
-//   try {
-//     const cachedData = useCache ? await redis.get(pokemon) : null;
-
-//     if (cachedData) {
-//       console.time("Cache Hit");
-//       const resParsedFromCache = JSON.parse(cachedData);
-//       console.timeEnd("Cache Hit");
-
-//       return res.json(resParsedFromCache);
-//     } else {
-//       console.time("Cache Miss");
-//       const response = await fetch(
-//         `https://pokeapi.co/api/v2/pokemon/${pokemon}`
-//       );
-//       const data = await response.json();
-//       await redis.setex(pokemon, 3600, JSON.stringify(data));
-//       console.timeEnd("Cache Miss");
-
-//       return res.json(data);
-//     }
-//   } catch {
-//     res.status(500).send("An error occurred");
-//   }
-// });
-
 app.listen(3000, () => {
   console.log("Server is running on http://localhost:3000");
 });
